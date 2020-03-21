@@ -1,5 +1,12 @@
 
 DEBUG = 1
+PIECE_NAMES = [
+    'ant',
+    'spider',
+    'beetle',
+    'bee',
+    'grasshopper',
+]
 
 class Game:
     def __init__(self):
@@ -10,47 +17,67 @@ class Game:
         self.current_player = self.players[0]
     
     def next_turn(self):
-        if (DEBUG): print(f"requesting move from: {self.current_player}")
-        move = input("Whats ya move? ")
-        print(move)
-        move = self.validate_move(move)
+        valid_move = False
+        while not valid_move:
+            if (DEBUG): print(f"requesting move from: {self.current_player}")
+            move_input = input(f"Whats ya move ({self.current_player})? ")
+            move_cmd = self.validate_move_cmd(move_input)
+            if move_cmd:
+                valid_move = True
+            print("")
+
+        # Change player
+        if self.current_player == self.players[0]:
+            self.current_player = self.players[1]
+        else:
+            self.current_player = self.players[0]
     
-    def validate_move(self, move):
+    def validate_move_cmd(self, move):
+        """
+        Valid move commands:
+            "place piece x0 y0"
+            "move x0 y0 x1 y1"
+
+        returns move tuple, None if invalid
+        """
         move_parts = move.split()
-        if not (len(move_parts) == 3 or len(move_parts) == 5):
+        if not len(move_parts) in [4, 5]:
             print("Incorrect number of args")
-            return 1
+            return None
         if not move_parts[0] in ['place', 'move']:
             print(f"Invalid move {move_parts[0]}")
-            err = 2
-        try:
-            pos_x_from = int(move_parts[1])
-        except:
-            print("pos_x_from was not an int")
-            err = 1
-        try:
-            pos_y_from = int(move_parts[2])
-        except:
-            print("pos_y_from was not an int")
-            err = 1
-        if not err == 2 and move_parts[0] == 'move':
-            try:
-                pos_x_to = int(move_parts[3])
-            except:
-                print("pos_x_to was not an int")
-                err = 1
-            try:
-                pos_y_to = int(move_parts[4])
-            except:
-                print("pos_y_to was not an int")
-                err = 1
-        
-        if err:
             return None
-        elif move_parts[2] == 'place':
-            return (move_parts[2], pos_x_from, pos_y_from)
-        else:
-            return (move_parts[2], pos_x_from, pos_y_from, pos_x_to, pos_y_to)
+
+        if move_parts[0] == 'place':
+            if not len(move_parts) == 4:
+                print("Incorrect number of args for 'place'")
+                return None
+            if not move_parts[1] in PIECE_NAMES:
+                print(f"Invalid piece {move_parts[1]}")
+                return None
+            try:
+                x0 = int(move_parts[2])
+                y0 = int(move_parts[3])
+            except ValueError:
+                print("Move position must be an integer")
+                return None
+
+        if move_parts[0] == 'move':
+            if not len(move_parts) == 5:
+                print("Incorrect number of args for 'move'")
+                return None
+            try:
+                x0 = int(move_parts[1])
+                y0 = int(move_parts[2])
+                x1 = int(move_parts[3])
+                y1 = int(move_parts[4])
+            except ValueError:
+                print("Move position must be an integer")
+                return None
+
+        if move_parts[0] == 'place':
+            return (move_parts[0], x0, y0)
+        return (move_parts[0], x0, y0, x1, y1)
 
 
 class Board:

@@ -1,5 +1,6 @@
 
-DEBUG = 1
+DEBUG = 0
+DEMO = 1
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -40,7 +41,7 @@ class Game:
                         continue
                     else:
                         valid_move = True
-                    # print(self.board)
+                    print(self.board)
                 else:
                     # 'move' the piece
                     pass
@@ -128,7 +129,7 @@ class Board:
             return False
         
         # Check that it is next to another piece on the board
-        # and that there are no pieces of the oppositie team around it
+        # and that there are no pieces of the opposite team around it
         # Special cases are:
         # - this is the first piece placed therfore doesn't require
         #   another piece next to it
@@ -171,7 +172,6 @@ class Board:
 
     def piece_at_this_position(self, pos_x, pos_y):
         for p in self.board:
-            print(p)
             if p[1:] == [pos_x, pos_y]: # p[1:] -> [pos_x, pos_y]
                 if (DEBUG): print("This place is taken")
                 return True
@@ -179,38 +179,80 @@ class Board:
 
     def __repr__(self):
         # Find max and min x and y coords
-        x_min, x_max, y_min, y_max = (self.board[0][1], self.board[0][1], self.board[0][2], self.board[0][2])
-        board = ""
-        for p in self.board:
-            if p[1] < x_min:
-                x_min = p[1]
-            if p[1] > x_max:
-                x_max = p[1]
-            if p[2] < y_min:
-                y_min = p[1]
-            if p[2] > y_max:
-                y_max = p[1]
+        x_min, x_max, y_min, y_max = (self.board[0][0].pos_x, self.board[0][0].pos_x, self.board[0][0].pos_y, self.board[0][0].pos_y)
+        for p, _, _ in self.board:
+            if p.pos_x < x_min:
+                x_min = p.pos_x
+            if p.pos_x > x_max:
+                x_max = p.pos_x
+            if p.pos_y < y_min:
+                y_min = p.pos_y
+            if p.pos_y > y_max:
+                y_max = p.pos_y
 
-        board_x_list = [5*' '] * (x_max - x_min + 1)
-        board_list = [[]] * (y_max - y_min + 1)
-        for i in board_list: board_list[i] = board_x_list
-        for p in self.board:
-            board_list[p[1] - x_min][p[2] - y_min] = p[0].name[0]
+        width = x_max - x_min + 1
+        height = y_max - y_min + 1
+        board_x_list = [None] * width
+        board_list = [board_x_list] * height
+        # for i in board_list:
+        #     i = board_x_list
+        # print(board_list, board_x_list, "board list")
+        print(f"ymin {y_min}, y_max {y_max}, x_min {x_min}, x_max {x_max}, height {height}, width {width}")
+        """ board_list
+        [
+         [Q   , None, B   , None, None],
+         [None, S   , None, None, None],
+        ]"""
+        for p, _, _ in self.board:
+            # print(f"placing piece {p} ({p.pos_x},{p.pos_y})")
+            board_list[p.pos_y - y_min][p.pos_x - x_min] = p.type[0]
         """
         B   Q   G
           A   S
         """
-        for j in range(y_min, y_max + 1):
-            for i in range(x_min, x_max + 1):
-                # Space at the beginning to offset the hex shape
-                board += 5 * ' ' * (y_max - j)
-                board += board_list[i][j]
-                
+        # Width - 1 + 4 * pieces
+        # Height - 1 + 2 * pieces
+        def print_around(board, pos_x, pos_y, token):
+            """
+             01234
+            0 ___
+            1/ P \ 
+            2\___/
+            """
+            border = [
+                ['/' , pos_x    , pos_y + 1],
+                ['_' , pos_x + 1, pos_y    ],
+                ['_' , pos_x + 2, pos_y    ],
+                ['_' , pos_x + 3, pos_y    ],
+                ['\\', pos_x + 4, pos_y + 1],
+                ['/' , pos_x + 4, pos_y + 2],
+                ['_' , pos_x + 1, pos_y + 2],
+                ['_' , pos_x + 2, pos_y + 2],
+                ['_' , pos_x + 3, pos_y + 2],
+                ['\\', pos_x    , pos_y + 2],
+                [token, pos_x +2 , pos_y + 1],
+            ]
+            # print(border)
+            for char, x, y in border:
+                board[y][x] = char
+            return board
 
-            board += 'END\n'
-        print (x_min, x_max, y_min, y_max)
+        board_width = 1 + width * 4
+        board_height = 2 + 2 * height
+        board = []
+        for i in range(board_height):
+            board.append([])
+            for _ in range(board_width):
+                board[i].append(" ")
         # print(board)
-        return board
+
+        for p, _, _ in self.board:
+            y = (p.pos_y - y_max) * -2 + p.pos_x % 2
+            x = (p.pos_x - x_max) * 4
+            print("x,y", x, y)
+            print_around(board, x, y, p.token)
+        
+        return 'board\n' + '\n'.join(''.join(line) for line in board) + '\n'
 
     def __str__(self):
         return self.__repr__()
@@ -237,12 +279,31 @@ class Piece():
         }
         self.pos_x = None
         self.pos_y = None
+        self.assign_board_token()
 
     def __str__(self):
         return self.name
 
     def __repr__(self):
         return self.__str__()
+    
+    def assign_board_token(self):
+        if self.player_id == 0:
+            self.token = '\033[37m'
+        else:
+            self.token = '\033[31m'
+        if   self.type == 'bee':
+            self.token += 'Q'
+        elif self.type == 'spider':
+            self.token += 'S'
+        elif self.type == 'beetle':
+            self.token += 'B'
+        elif self.type == 'grasshopper':
+            self.token += 'G'
+        elif self.type == 'ant':
+            self.token += 'A'
+        
+        self.token += '\033[37m'
 
     def add_piece_to_surr_pieces(self, piece, vice_versa=False):
         """                     
@@ -275,13 +336,9 @@ class Piece():
                 [pos_x - 1, pos_y    , '6'], # position 6
                 [pos_x,     pos_y    , 'top'], # position top
             ]
-        print("THIS PIECE", [piece.pos_x, piece.pos_y])
         for pos in surr_positions:
-            print("SEARCHING FOR", pos[0:2])
             if pos[0:2] == [piece.pos_x, piece.pos_y]:
                 self.surr_pieces[pos[2]] = piece
-                print(self.surr_pieces)
-                print("Found it ", pos[2])
                 if vice_versa:
                     
                     piece.add_piece_to_surr_pieces(self, vice_versa=False)
@@ -329,7 +386,7 @@ class Player:
 
 
 def game_loop(game):
-    debug_count = 3
+    debug_count = 7
     while not game.ended and debug_count:
         game.next_turn()
         debug_count -= 1
@@ -337,7 +394,26 @@ def game_loop(game):
     return 0
 
 
+def demo_board_0(game):
+    demo_board = [
+        [game.players[0], 0 , 0 , 11],
+        [game.players[1], 0 , -1, 11],
+        [game.players[0], 0 , 1 , 0 ],
+        [game.players[0], 1 , 1,  1 ],
+        # [game.players[0], 0 , 0, 2 ],
+        # [game.players[0], 0 , 0, 3 ],
+    ]
+    for player, x, y, piece_no in demo_board:
+        game.board.add_piece(player.pieces[piece_no], x, y, player)
+    return game
+
+
 if __name__ == "__main__":
     game = Game()
-    ret_code = game_loop(game)
+    if DEMO:
+        game = demo_board_0(game)
+        print(game.board)
+        ret_code = 0
+    else:
+        ret_code = game_loop(game)
     exit(ret_code)

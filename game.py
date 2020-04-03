@@ -161,13 +161,20 @@ class Board:
             p.add_piece_to_surr_pieces(piece, vice_versa=True)
         return True
 
-    def move_piece(self, piece, dest_x, dest_y):
-        # Moving this piece cannot break the hive and the new position
-        # must have pieces around it
+    def move_piece(self, piece, dest_x, dest_y):        
         print(f"Moving {piece} to ({dest_x},{dest_y})")
         new_surr_pieces = self.surrounding_pieces(dest_x, dest_y)
-        if self.check_break_hive(piece) or not len(new_surr_pieces):
+        # Moving this piece cannot break the hive
+        if self.check_break_hive(piece):
             print("Broke the hive")
+            return False
+        # Must not break away from the hive
+        if not len(new_surr_pieces):
+            print("Cannot move away from hive")
+            return False
+        # A beetle on top will prevent it from moving
+        if not piece.surr_pieces['top'] is None:
+            print("You have a beetle on you, no way you can move!")
             return False
         
         # See if this new position is possible for the piece
@@ -180,6 +187,8 @@ class Board:
             # Link this piece with its new pieces
             for p in new_surr_pieces:
                 p.add_piece_to_surr_pieces(piece, vice_versa=True)
+        else:
+            print(f"Cannot move {piece} from ({piece.pos_x},{piece.pos_y}) to ({dest_x},{dest_y})")
             
         return True
 
@@ -275,7 +284,6 @@ class Board:
 
         width = x_max - x_min + 1
         height = y_max - y_min + 1
-
         # Width - 1 + 4 * pieces
         # Height - 1 + 2 * pieces
         def print_around(board, pos_x, pos_y, token):
@@ -339,6 +347,7 @@ class Piece():
             '5': None,
             '6': None,
             'top': None,
+            'bottom': None,
         }
         self.pos_x = None
         self.pos_y = None
@@ -368,7 +377,7 @@ class Piece():
         
         self.token += '\033[37m'
 
-    def add_piece_to_surr_pieces(self, piece, vice_versa=False):
+    def add_piece_to_surr_pieces(self, piece, vice_versa=False, place_on_top=False):
         """                     
                   (0,1)   (2,1)
              (-1,1)   (1,1)   (3,1)
@@ -401,9 +410,13 @@ class Piece():
             ]
         for pos in surr_positions:
             if pos[0:2] == [piece.pos_x, piece.pos_y]:
-                self.surr_pieces[pos[2]] = piece
+                # We want to place this piece on top of the other
+                # piece. Otherwise treat it as normal.
+                if place_on_top and pos[2] == 'top':
+                    self.surr_pieces['bottom'] = piece
+                else:
+                    self.surr_pieces[pos[2]] = piece
                 if vice_versa:
-                    
                     piece.add_piece_to_surr_pieces(self, vice_versa=False)
                 return
 
@@ -411,6 +424,8 @@ class Piece():
         # Go through each surrounding piece and remove the link
         for key, p in self.surr_pieces.items():
             if not p is None:
+                # Now get the surrounding piece and remove its reference
+                # to this piece
                 for key_other, p_other in p.surr_pieces.items():
                     if not p_other is None:
                         if p_other.id == self.id:
@@ -426,6 +441,12 @@ class Piece():
             valid = self.move_along_board(board, dest_x=dest_x, dest_y=dest_y)
         elif self.type == 'spider':
             valid = self.move_along_board(board, count=3)
+        elif self.type == 'grasshopper':
+            valid = self.jump_across_board(board)
+        elif self.type == 'bee':
+            valid = self.move_along_board(board, count=1)
+        elif self.type == 'beetle':
+            valid = self.move_across_board(board, dest_x=dest_x, dest_y=dest_y)
                 
         return valid
 
@@ -571,83 +592,48 @@ class Piece():
         else:
             return count_positions
 
-                
+    def jump_across_board(self, board):
+        """
+        Can jump in six directions. Can only jump in a direction if there
+        is a piece there. Has to jump to the next available location.
+        """
+        # Save the possible positions
+        viable_jump = []
+        # Check each surrounding position
+        for dir, piece in self.surr_pieces.items():
+            if dir == 'top': continue
+            # Keep finding an opposite piece until there is an empty space
+            previous_piece = None
+            while True:
+                # Is this spot empty
+                if piece is None:
+                    # If it had no piece before it then it isn't a valid move
+                    if previous_piece == None:
+                        print(f"Cannot move in this direction {dir}")
+                        break
+                    else:
+                        viable_jump.append(Position(previous_piece.pos_x, previous_piece.pos_y))
+                        break
+                # Find the next piece along
+                previous_piece = piece
+                piece = piece.surr_pieces[dir]
+        return viable_jump
 
-        def temp_move_dir(board, dir):
-            #DEBUG stuff
-            tmp_x = self.pos_x
-            tmp_y = self.pos_y
-
-            # Get position for dir
-            new_x, new_y = self.direction_position(dir)
-            self.pos_x = new_x
-            self.pos_y = new_y
-
-            # Reset the pieces to none
-            for key, _ in self.surr_pieces.items():
-                self.surr_pieces[key] = None
-
-            # Add the surrounding pieces for the new position
-            new_surr_pieces = board.surrounding_pieces(new_x, new_y)
-
-            if DEBUG: print(f"Moving around board from ({tmp_x},{tmp_y}) to ({self.pos_x},{self.pos_y})")
-            if DEBUG: print(f"Now surrounded by {new_surr_pieces}")
-            for p in new_surr_pieces:
-                self.add_piece_to_surr_pieces(p, vice_versa=False)
-            return new_x, new_y
-
-        # First move
-        next_moves = self.possible_moves()
-        if not len(next_moves):
-            print("You cannot move out of your current position")
-            return False
-        if DEBUG: print(f"First next moves {next_moves}, pos ({self.pos_x},{self.pos_y})")
-
-        prev_x = self.pos_x
-        prev_y = self.pos_y
-        temp_move_dir(board, next_moves[0])
-        print(board)
-        move_count = 1
-        while not (init_pos_x == self.pos_x and init_pos_y == self.pos_y):
-            # Are we going a specific number of steps?
-            # Or until we reach a specific position?
-            if dest_x is None and dest_y is None and count > 0:
-                print(f"The piece has moved {move_count} times")
-                if move_count >= count:
-                    end_x, end_y = (self.pos_x, self.pos_y)
-                    revert_to_init()
-                    return end_x, end_y
-            elif not dest_x is None and not dest_y is None and count is None:
-                # Is this the destination?
-                if self.pos_x == dest_x and self.pos_y == dest_y:
-                    return True
-
-            # Move to the next spot
-            next_moves = self.possible_moves()
-            if not len(next_moves):
-                print("It would be a bug to get here as you cannot move \
-                    into a spot you cant get out of")
-                return False
-
-            # Don't move back into the same spot you came from
-            tmp_prev_x = self.pos_x
-            tmp_prev_y = self.pos_y
-            if DEBUG: print(f"Shouldn't move back to where we were, from ({self.pos_x},{self.pos_y}) to either: {self.direction_position(next_moves[0])} or {self.direction_position(next_moves[1])}, {next_moves}")
-            if self.direction_position(next_moves[0]) == (prev_x, prev_y):
-                if DEBUG: print("Ill take the other path")
-                temp_move_dir(board, next_moves[1])
-            else:
-                temp_move_dir(board, next_moves[0])
-            if DEBUG: print("The new board is:")
-            if not DEBUG: print(board)
-            prev_x = tmp_prev_x
-            prev_y = tmp_prev_y
-
-            # Increment move count
-            move_count += 1
-        
-        # If the loop ended then the destination piece wasn't found
+    def move_across_board(self, board, dest_x=None, dest_y=None):
+        """
+        Can move in any direction one place. Can move on top another piece.
+        Can move on top a piece which is already on top another piece.
+        """
+        # It has already been checked that the move doesn't break the hive
+        # meaning that we just need to move the piece to where it needs to go.
+        print("Trying to go to", (dest_x, dest_y))
+        for dir, _ in self.surr_pieces.items():
+            # print("Position around beetle", self.direction_position(dir))
+            if self.direction_position(dir) == (dest_x, dest_y):
+                # print(f"Beetle can move here {piece}")
+                return True
         return False
+
 
     def direction_position(self, dir):
         pos_x = self.pos_x
@@ -740,7 +726,7 @@ def game_loop(game):
 
 
 def demo_board_0(game):
-    demo = 4
+    demo = 7
     if demo == 1:
         # Simple moving ant
         demo_board = [
@@ -788,6 +774,38 @@ def demo_board_0(game):
             ['place', game.players[0], 0 ,  4,  8],
             ['place', game.players[0],-1 ,  3,  5],
             ['move' , game.players[0], 0 , -2,  8],
+        ]
+    elif demo == 5:
+        # Grasshopper move 3 times consecutively
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 11],
+            ['place', game.players[1], 0 , -1, 11],
+            ['place', game.players[0], 0 ,  1,  0],
+            ['place', game.players[0], 1 ,  1,  8],
+            ['place', game.players[0], 2 ,  0,  9],
+            ['move' , game.players[0], 0 , -2,  0],
+            ['move' , game.players[0], 0 ,  1,  0],
+            ['move' , game.players[0], 3 ,  0,  0],
+        ]
+    elif demo == 6:
+        # Queen bee move
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 11],
+            ['place', game.players[1], 0 , -1, 11],
+            ['place', game.players[0], 0 ,  1,  0],
+            ['place', game.players[0], 1 ,  1,  8],
+            ['place', game.players[0], 2 ,  0,  9],
+            ['move' , game.players[1], 1 ,  0, 11],
+        ]
+    elif demo == 7:
+        # Beetle move
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 11],
+            ['place', game.players[1], 0 , -1, 11],
+            ['place', game.players[0], 0 ,  1,  0],
+            ['place', game.players[0], 1 ,  1,  8],
+            ['place', game.players[0], 2 ,  0, 10],
+            ['move' , game.players[0], 1 ,  0, 10],
         ]
     
     for move_type, player, x, y, piece_no in demo_board:

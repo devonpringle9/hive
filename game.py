@@ -275,7 +275,6 @@ class Board:
 
         width = x_max - x_min + 1
         height = y_max - y_min + 1
-
         # Width - 1 + 4 * pieces
         # Height - 1 + 2 * pieces
         def print_around(board, pos_x, pos_y, token):

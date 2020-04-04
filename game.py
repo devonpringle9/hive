@@ -1,6 +1,6 @@
 
 DEBUG = 0
-DEMO = 1
+DEMO = 0
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -53,6 +53,7 @@ class Game:
                 if piece:
                     self.board.move_piece(piece, x_dest, y_dest)
                 else:
+                    print(self.board.board)
                     print("There was no piece at this position")
                 pass
             print("")
@@ -163,9 +164,9 @@ class Board:
 
     def move_piece(self, piece, dest_x, dest_y):        
         print(f"Moving {piece} to ({dest_x},{dest_y})")
-        new_surr_pieces = self.surrounding_pieces(dest_x, dest_y)
+        new_surr_pieces = self.surrounding_pieces(dest_x, dest_y, include_vertical=True, exclude_pieces=[piece])
         # Moving this piece cannot break the hive
-        if self.check_break_hive(piece):
+        if not piece.surr_pieces['bottom'] and self.check_break_hive(piece):
             print("Broke the hive")
             return False
         # Must not break away from the hive
@@ -178,6 +179,7 @@ class Board:
             return False
         
         # See if this new position is possible for the piece
+        # print(f"Going to move {piece} with surr_pieces {piece.surr_pieces}")
         if piece.valid_move(self, dest_x, dest_y):
             # Unlink this piece from its current pieces
             piece.detach_surr_pieces()
@@ -186,7 +188,15 @@ class Board:
             piece.pos_y = dest_y
             # Link this piece with its new pieces
             for p in new_surr_pieces:
-                p.add_piece_to_surr_pieces(piece, vice_versa=True)
+                # We need to know if any of these new pieces are on top
+                # or even on the bottom
+                # If this piece has a piece on top then we won't be able
+                # to attach to this piece
+                # Any other instance we may as well place_on_bottom because
+                # only a beetle will be able to use this function for on
+                # top of another piece.
+                if p.surr_pieces['top']: continue
+                p.add_piece_to_surr_pieces(piece, vice_versa=True, place_on_bottom=True)
         else:
             print(f"Cannot move {piece} from ({piece.pos_x},{piece.pos_y}) to ({dest_x},{dest_y})")
             
@@ -195,11 +205,12 @@ class Board:
     def check_break_hive(self, piece):
         # Each surrounding piece must be able to reach each other surrounding piece
         for _, piece_start in piece.surr_pieces.items():
-            if not piece_start == None:
-                for _, piece_end in piece.surr_pieces.items():
-                    if not piece_end == None:
-                        if not self.breadth_first_search(piece, piece_start, piece_end):
-                            return True
+            if piece_start == None: continue
+            for _, piece_end in piece.surr_pieces.items():
+                if piece_end == None: continue
+                # print(f"BreakHive: Can {piece_start} make it to {piece_end}")
+                if not self.breadth_first_search(piece, piece_start, piece_end):
+                    return True
         return False
 
     def breadth_first_search(self, missing_piece, piece_start, piece_end):
@@ -209,8 +220,7 @@ class Board:
         queue = [piece_start]
 
         # End once we've found the end piece
-        found = False
-        while not found:
+        while True:
             if len(queue):
                 target_piece = queue.pop()
             else:
@@ -224,9 +234,9 @@ class Board:
                 for _, val in target_piece.surr_pieces.items():
                     if not val == None and not val in checked_pieces:
                         queue = [val] + queue
-        return False
 
-    def surrounding_pieces(self, pos_x, pos_y):
+    def surrounding_pieces(self, pos_x, pos_y, include_vertical=False, exclude_pieces=None):
+        # This is beetle compatible IF include_vertical is correctly chosen
         if not pos_x % 2:
             surr_positions = [
                 [pos_x,     pos_y + 1],
@@ -235,7 +245,6 @@ class Board:
                 [pos_x,     pos_y - 1],
                 [pos_x - 1, pos_y    ],
                 [pos_x - 1, pos_y + 1],
-                # TODO: as current position as a beetle may be here
             ]
         else:
             surr_positions = [
@@ -245,15 +254,18 @@ class Board:
                 [pos_x,     pos_y - 1],
                 [pos_x - 1, pos_y - 1],
                 [pos_x - 1, pos_y    ],
-                # TODO: as current position as a beetle may be here
             ]
+        # If we are checking vertical pieces then we need to check this position
+        if include_vertical:
+            surr_positions.append([pos_x, pos_y])
 
         surr_pieces = []
         for p, _, _ in self.board:
             if [p.pos_x, p.pos_y] in surr_positions:
                 if (DEBUG): print(f"{p} is a surrounding piece")
+                if not exclude_pieces is None and p in exclude_pieces: continue
                 surr_pieces.append(p)
-        return surr_pieces         
+        return surr_pieces
 
     def piece_at_this_position(self, pos_x, pos_y):
         for p in self.board:
@@ -266,6 +278,8 @@ class Board:
         for p, _, _ in self.board:
             if [p.pos_x, p.pos_y] == [pos_x, pos_y]:
                 if (DEBUG): print("This place is taken")
+                # We shouldn't return a piece which has something above it
+                if p.surr_pieces['top']: continue
                 return p
         return False
 
@@ -286,7 +300,7 @@ class Board:
         height = y_max - y_min + 1
         # Width - 1 + 4 * pieces
         # Height - 1 + 2 * pieces
-        def print_around(board, pos_x, pos_y, token):
+        def print_around(board, pos_x, pos_y, token, x_val=None, y_val=None, under_piece=None):
             """
              01234
             0 ___
@@ -306,8 +320,14 @@ class Board:
                 ['\\', pos_x    , pos_y + 2],
                 [token, pos_x +2 , pos_y + 1],
             ]
+            if not x_val is None:
+                border[6][0] = str(x_val)[-1]
+            if not y_val is None:
+                border[8][0] = str(y_val)[-1]
+            if under_piece:
+                border[7][0] = under_piece.token
             for char, x, y in border:
-                board[y][x] = char
+                if board[y][x] in [' ','_']: board[y][x] = char
             return board
 
         board_width = 1 + width * 4
@@ -321,7 +341,9 @@ class Board:
         for p, _, _ in self.board:
             y = (p.pos_y - y_max) * -2 + p.pos_x % 2
             x = (p.pos_x - x_min) * 4
-            print_around(board, x, y, p.token)
+            if p.type=='beetle': print(p.surr_pieces)
+            if not p.surr_pieces['top']:
+                print_around(board, x, y, p.token, x_val=p.pos_x, y_val=p.pos_y, under_piece=p.surr_pieces['bottom'])
         
         return '\n'.join(''.join(line) for line in board) + '\n'
 
@@ -358,6 +380,12 @@ class Piece():
 
     def __repr__(self):
         return self.__str__()
+
+    def __eq__(self, other):
+        if type(other) == type(self):
+            if other.id == self.id:
+                return True
+        return False
     
     def assign_board_token(self):
         if self.player_id == 0:
@@ -377,7 +405,7 @@ class Piece():
         
         self.token += '\033[37m'
 
-    def add_piece_to_surr_pieces(self, piece, vice_versa=False, place_on_top=False):
+    def add_piece_to_surr_pieces(self, piece, vice_versa=False, place_on_bottom=False):
         """                     
                   (0,1)   (2,1)
              (-1,1)   (1,1)   (3,1)
@@ -386,6 +414,10 @@ class Piece():
         (-2,-1)   (0,-1)   (2,-1)
                       (1,-1)
         """
+        # This is beetle compatible BUT you must check specifically
+        # if the piece you are attaching is not on the bottom of another
+        # piece and that this piece is meant to be on the top of the
+        # target piece 'piece'.
         pos_x = self.pos_x
         pos_y = self.pos_y
         if not pos_x % 2:
@@ -412,8 +444,10 @@ class Piece():
             if pos[0:2] == [piece.pos_x, piece.pos_y]:
                 # We want to place this piece on top of the other
                 # piece. Otherwise treat it as normal.
-                if place_on_top and pos[2] == 'top':
-                    self.surr_pieces['bottom'] = piece
+                if place_on_bottom and pos[2] == 'top':
+                    self.surr_pieces['top'] = piece
+                    piece.surr_pieces['bottom'] = self
+                    return
                 else:
                     self.surr_pieces[pos[2]] = piece
                 if vice_versa:
@@ -421,16 +455,27 @@ class Piece():
                 return
 
     def detach_surr_pieces(self):
+        # This is beetle compatible
+
+        # First check if this piece has a top and bottom piece.
+        # In this case we want to attach these pieces together
+        # before complete seperation.
+        if self.surr_pieces['top'] and self.surr_pieces['bottom']:
+            self.surr_pieces['top'].surr_pieces['bottom'] = self.surr_pieces['bottom'].surr_pieces['top']
+            self.surr_pieces['bottom'].surr_pieces['top'] = self.surr_pieces['top'].surr_pieces['bottom']
+            self.surr_pieces['top'] = None
+            self.surr_pieces['bottom'] = None
         # Go through each surrounding piece and remove the link
-        for key, p in self.surr_pieces.items():
-            if not p is None:
-                # Now get the surrounding piece and remove its reference
-                # to this piece
-                for key_other, p_other in p.surr_pieces.items():
-                    if not p_other is None:
-                        if p_other.id == self.id:
-                            p.surr_pieces[key_other] = None
-                self.surr_pieces[key] = None
+        for dir, p in self.surr_pieces.items():
+            if p is None: continue
+            # Now get the surrounding piece and remove its reference
+            # to this piece
+            for dir_other, p_other in p.surr_pieces.items():
+                if p_other is None: continue
+                if p_other.id == self.id:
+                    # print(f'Detaching {self} from {p}')
+                    p.surr_pieces[dir_other] = None
+            self.surr_pieces[dir] = None
 
     
     def valid_move(self, board, dest_x, dest_y):
@@ -467,6 +512,8 @@ class Piece():
             return False
 
     def possible_moves(self):
+        # This is beetle compatible because this should never
+        # need to know what piece is on top of other pieces.
         side_combinations = { # target key: [left key, right key]
             '1': ['6', '2'],
             '2': ['1', '3'],
@@ -474,7 +521,7 @@ class Piece():
             '4': ['3', '5'],
             '5': ['4', '6'],
             '6': ['5', '1'],
-            'top': ['1', '2', '3', '4', '5', '6'],
+            'top': ['1', '2', '3', '4', '5', '6'], # Unneeded
         }
         move_locations = []
         # Go through surrounding pieces
@@ -484,7 +531,7 @@ class Piece():
                 # Check either side of this piece to see if you can move there
                 for adjacent_position in side_combinations[dir]:
                     if self.surr_pieces[adjacent_position] is None:
-                        if not DEBUG: print(f"Found a possible position to move attached to piece {dir} and empty space {adjacent_position}")
+                        if DEBUG: print(f"Found a possible position to move attached to piece {dir} and empty space {adjacent_position}")
                         # This place is vacant. Can I fit here?
                         if self.can_move_out(adjacent_position):
                             move_locations.append(adjacent_position)
@@ -496,6 +543,8 @@ class Piece():
         If you are looking for a count, returns a list of possible positions.
         If you are looking for a destination, will return bool, True if reachable.
         """
+        # This is beetle compatible because it doesn't need to know top pieces.
+
         # Save state
         init_pos_x = self.pos_x
         init_pos_y = self.pos_y
@@ -542,7 +591,7 @@ class Piece():
             # Are we going a specific number of steps?
             # Or until we reach a specific position?
             if dest_x is None and dest_y is None and count > 0:
-                print(f"The piece has moved {stack_depth} times")
+                if DEBUG: print(f"The piece has moved {stack_depth} times")
                 if stack_depth >= count:
                     count_positions.append(Position(self.pos_x, self.pos_y))
                     return False
@@ -560,9 +609,9 @@ class Piece():
             tmp_x = self.pos_x
             tmp_y = self.pos_y
             last_position, stack_depth = move_stack.pop()
-            print(f"Around the board moving from ({tmp_x},{tmp_y}) to {last_position}, now at stack depth {stack_depth}")
+            if DEBUG: print(f"Around the board moving from ({tmp_x},{tmp_y}) to {last_position}, now at stack depth {stack_depth}")
             temp_move_pos(board, last_position)
-            print(board)
+            if DEBUG: print(board)
             # Check the position of the last element in the stack
             dest = found_dest(last_position, stack_depth)
             if dest:
@@ -584,7 +633,7 @@ class Piece():
                         continue
                     for dir in next_moves:
                         next_x, next_y = self.direction_position(dir)
-                        print(f"Have I checked {Position(next_x, next_y)}. Is it in:\n{checked_positions}")
+                        if DEBUG: print(f"Have I checked {Position(next_x, next_y)}. Is it in:\n{checked_positions}")
                         if not Position(next_x, next_y) in checked_positions:
                             move_stack.append((Position(next_x, next_y), stack_depth + 1))
         if count is None:
@@ -597,6 +646,8 @@ class Piece():
         Can jump in six directions. Can only jump in a direction if there
         is a piece there. Has to jump to the next available location.
         """
+        # This is beetle compatible because it doesn't need to know top pieces.
+
         # Save the possible positions
         viable_jump = []
         # Check each surrounding position
@@ -636,6 +687,7 @@ class Piece():
 
 
     def direction_position(self, dir):
+        # This is beetle compatible because it returns surrounding coords.
         pos_x = self.pos_x
         pos_y = self.pos_y
         if not pos_x % 2:
@@ -726,7 +778,7 @@ def game_loop(game):
 
 
 def demo_board_0(game):
-    demo = 7
+    demo = 8
     if demo == 1:
         # Simple moving ant
         demo_board = [
@@ -806,6 +858,18 @@ def demo_board_0(game):
             ['place', game.players[0], 1 ,  1,  8],
             ['place', game.players[0], 2 ,  0, 10],
             ['move' , game.players[0], 1 ,  0, 10],
+            ['move' , game.players[0], 1 ,  1, 10],
+            ['move' , game.players[0], 0 ,  1, 10],
+            ['move' , game.players[0], -1,  2, 10],
+        ]
+    elif demo == 8:
+        # Spider move
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 11],
+            ['place', game.players[1], 1 ,  0, 11],
+            ['place', game.players[0], 0 ,  1,  8],
+            ['place', game.players[1], 2 , -1,  2],
+            ['move' , game.players[0], 3 ,  0,  8],
         ]
     
     for move_type, player, x, y, piece_no in demo_board:

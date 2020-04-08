@@ -34,6 +34,11 @@ class Game:
                 piece_type = move_cmd[1]
                 x_dest = move_cmd[2]
                 y_dest = move_cmd[3]
+
+                # The board will bug if you don't place at 0 0 on the first move
+                if self.current_player.turn_count == 0 and (x_dest or y_dest):
+                    print("place at 0 0 for the first move otherwise itll bug a bit :O")
+                    continue
                 piece = self.current_player.get_piece_by_available(piece_type)
                 if piece == None:
                     print("That player doesn't have anymore of those pieces available")

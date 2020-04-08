@@ -1,6 +1,6 @@
 
 DEBUG = 0
-DEMO = 1
+DEMO = 0
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -38,11 +38,17 @@ class Game:
                 if piece == None:
                     print("That player doesn't have anymore of those pieces available")
                     continue
+                if self.current_player.turn_count == 3 and not self.current_player.played_queen and not piece_type == 'bee':
+                    print("You need to play the queen bee on or before your 4th move.")
+                    continue
                 if not self.board.add_piece(piece, x_dest, y_dest, self.current_player):
                     print("Invalid move for that piece")
                     continue
                 else:
                     valid_move = True
+                    # Was this the queen bee
+                    if piece_type == 'bee':
+                        self.current_player.played_queen = True
                 print(self.board)
             else:
                 x_init = move_cmd[1]
@@ -60,6 +66,7 @@ class Game:
             print("")
 
         # Change player
+        self.current_player.turn_count += 1
         if self.current_player == self.players[0]:
             self.current_player = self.players[1]
         else:
@@ -735,6 +742,8 @@ class Player:
         self.id = id
         self.pieces = self.init_pieces()
         if (DEBUG): print(f"Created pieces for {self.name}: {self.pieces}")
+        self.turn_count = 0
+        self.played_queen = False
 
     def __str__(self):
         return self.name
@@ -773,7 +782,7 @@ def game_loop(game):
     debug_count = 7
     while not game.ended and debug_count:
         game.next_turn()
-        debug_count -= 1
+        # debug_count -= 1
     
     return 0
 

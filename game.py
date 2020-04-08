@@ -1,6 +1,6 @@
 
 DEBUG = 0
-DEMO = 0
+DEMO = 1
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -51,7 +51,8 @@ class Game:
                 y_dest = move_cmd[4]
                 piece = self.board.get_piece_at_this_position(x_init, y_init)
                 if piece:
-                    self.board.move_piece(piece, x_dest, y_dest)
+                    valid_move = self.board.move_piece(piece, x_dest, y_dest)
+                    print(self.board)
                 else:
                     print(self.board.board)
                     print("There was no piece at this position")
@@ -592,7 +593,7 @@ class Piece():
             # Or until we reach a specific position?
             if dest_x is None and dest_y is None and count > 0:
                 if DEBUG: print(f"The piece has moved {stack_depth} times")
-                if stack_depth >= count:
+                if stack_depth > count:
                     count_positions.append(Position(self.pos_x, self.pos_y))
                     return False
             elif not dest_x is None and not dest_y is None and count is None:
@@ -639,7 +640,7 @@ class Piece():
         if count is None:
             return False
         else:
-            return count_positions
+            return Position(dest_x, dest_y) in count_positions
 
     def jump_across_board(self, board):
         """
@@ -869,7 +870,7 @@ def demo_board_0(game):
             ['place', game.players[1], 1 ,  0, 11],
             ['place', game.players[0], 0 ,  1,  8],
             ['place', game.players[1], 2 , -1,  2],
-            ['move' , game.players[0], 3 ,  0,  8],
+            # ['move' , game.players[0], 3 ,  0,  8],
         ]
     
     for move_type, player, x, y, piece_no in demo_board:

@@ -8,6 +8,40 @@ PIECE_NAMES = [
     'bee',
     'grasshopper',
 ]
+RULES = """
+Hey gamers! This is hive and here's the lowdown.
+Place pieces on the hexagonal grid and move them around.
+OBJECTIVE: Surround the other players queen bee.
+PIECES: Each player has these pieces
+- 1 queen bee
+- 3 ants
+- 3 grasshoppers
+- 2 spiders
+- 2 beetles
+MOVES:
+* bee - move one position
+* ant - move anywhere around the hive
+* grasshopper - jump in a straight line across any number of pieces
+                (except 0 pieces) until the next empty position
+* spider - move around the hive three positions
+* beetle - move one space either around the hive or on top of the hive.
+            The piece underneath cannot move. If both players pieces
+            exist in the same position, you cannot place a piece next to
+            it.
+RULES:
+* You can't break the hive. Before you move a piece, if you lift it from
+    the board and its splits the hive in two, you cannot move that piece.
+* Must place the queen bee on or before your 4th move.
+
+HOW TO PLAY:
+You have two options, 'move' and 'place'
+place piece_name x y
+move x_piece y_piece x_destination y_destination
+- piece_name, includes: bee, spider, grasshopper, ant, beetle
+- x, y, are printed on the board with the piece
+        - y is vertical
+        - x is horizontal but every second position is slighty down
+"""
 
 class Game:
     def __init__(self):
@@ -16,6 +50,8 @@ class Game:
         self.players = [Player(i) for i in range(2)]
         if (DEBUG): print(f"Created players: {self.players}")
         self.current_player = self.players[0]
+
+        if not DEBUG: print(RULES)
     
     def next_turn(self):
         valid_move = False

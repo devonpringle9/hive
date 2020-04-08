@@ -51,12 +51,17 @@ class Game:
                         self.current_player.played_queen = True
                 print(self.board)
             else:
+                # 'move' was chosen
                 x_init = move_cmd[1]
                 y_init = move_cmd[2]
                 x_dest = move_cmd[3]
                 y_dest = move_cmd[4]
                 piece = self.board.get_piece_at_this_position(x_init, y_init)
                 if piece:
+                    # This piece must below to this player
+                    if not piece.player_id == self.current_player.id:
+                        print("You can't move the other players piece, dude!")
+                        continue
                     valid_move = self.board.move_piece(piece, x_dest, y_dest)
                     print(self.board)
                 else:

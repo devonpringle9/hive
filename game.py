@@ -1,6 +1,6 @@
 
 DEBUG = 0
-DEMO = 1
+DEMO = 0
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -109,7 +109,6 @@ class Game:
                     valid_move = self.board.move_piece(piece, x_dest, y_dest)
                     print(self.board)
                 else:
-                    print(self.board.board)
                     print("There was no piece at this position")
                 pass
             print("")
@@ -229,7 +228,6 @@ class Board:
             print("There are no surrounding pieces")
             return False
         if len(self.board) > 1:
-            print(f"surr pieces {surr_pieces} and placing {piece}")
             for p in surr_pieces:
                 if p.player_id != player.id or p.surr_pieces['top']:
                     # If the top piece is this players piece, then it can be placed here
@@ -252,7 +250,7 @@ class Board:
         return True
 
     def move_piece(self, piece, dest_x, dest_y):        
-        print(f"Moving {piece} to ({dest_x},{dest_y})")
+        if DEBUG: print(f"Moving {piece} to ({dest_x},{dest_y})")
         new_surr_pieces = self.surrounding_pieces(dest_x, dest_y, include_vertical=True, exclude_pieces=[piece])
         # Moving this piece cannot break the hive
         if not piece.surr_pieces['bottom'] and self.check_break_hive(piece):
@@ -288,6 +286,7 @@ class Board:
                 p.add_piece_to_surr_pieces(piece, vice_versa=True, place_on_bottom=True)
         else:
             print(f"Cannot move {piece} from ({piece.pos_x},{piece.pos_y}) to ({dest_x},{dest_y})")
+            return False
             
         return True
 
@@ -438,7 +437,6 @@ class Board:
         for p, _, _ in self.board:
             y = (p.pos_y - y_max) * -2 + p.pos_x % 2
             x = (p.pos_x - x_min) * 4
-            if p.type=='beetle': print(p.surr_pieces)
             if not p.surr_pieces['top']:
                 print_around(board, x, y, p.token, x_val=p.pos_x, y_val=p.pos_y, under_piece=p.surr_pieces['bottom'])
         
@@ -577,19 +575,30 @@ class Piece():
     
     def valid_move(self, board, dest_x, dest_y):
 
+        # Keep the pieces location saved just in case it is changed
+        # through validation
+        init_pos_x = self.pos_x
+        init_pos_y = self.pos_y
+        init_surr_pieces = self.surr_pieces
+        def revert_to_init():
+            self.pos_x = init_pos_x
+            self.pos_y = init_pos_y
+            self.surr_pieces = init_surr_pieces
+
         # This will let you know if the move isn't valid.
         # If it is, it will also move there and there is no follow up action.
         if self.type == 'ant':
             valid = self.move_along_board(board, dest_x=dest_x, dest_y=dest_y)
         elif self.type == 'spider':
-            valid = self.move_along_board(board, count=3)
+            valid = self.move_along_board(board, count=3, dest_x=dest_x, dest_y=dest_y)
         elif self.type == 'grasshopper':
             valid = self.jump_across_board(board)
         elif self.type == 'bee':
-            valid = self.move_along_board(board, count=1)
+            valid = self.move_along_board(board, count=1, dest_x=dest_x, dest_y=dest_y)
         elif self.type == 'beetle':
             valid = self.move_across_board(board, dest_x=dest_x, dest_y=dest_y)
                 
+        revert_to_init()
         return valid
 
     def can_move_out(self, move_out_dir_key):
@@ -642,11 +651,6 @@ class Piece():
         """
         # This is beetle compatible because it doesn't need to know top pieces.
 
-        # Save state
-        init_pos_x = self.pos_x
-        init_pos_y = self.pos_y
-        init_surr_pieces = self.surr_pieces
-
         def temp_move_pos(board, position):
             #DEBUG stuff
             tmp_x = self.pos_x
@@ -669,17 +673,12 @@ class Piece():
                 self.add_piece_to_surr_pieces(p, vice_versa=False)
             return new_surr_pieces
 
-        def revert_to_init():
-            self.pos_x = init_pos_x
-            self.pos_y = init_pos_y
-            self.surr_pieces = init_surr_pieces
-
         # To navigate around the board we need to do a depth first search
         # until we find the destination position. A stack (list) will contain
         # the positions travelled to and the depth in their search. The depth
         # is required because we need to know when a spider has moved three
         # space.
-        move_stack = [(Position(init_pos_x, init_pos_y), 0)]
+        move_stack = [(Position(self.pos_x, self.pos_y), 0)]
         checked_positions = []
         stack_depth = 0
         count_positions = []
@@ -687,11 +686,13 @@ class Piece():
         def found_dest(position, stack_depth):
             # Are we going a specific number of steps?
             # Or until we reach a specific position?
-            if dest_x is None and dest_y is None and count > 0:
+            if count and count > 0:
                 if DEBUG: print(f"The piece has moved {stack_depth} times")
-                if stack_depth > count:
+                if stack_depth == count:
                     count_positions.append(Position(self.pos_x, self.pos_y))
-                    return False
+                    # We want to find all other possible positions for this count
+                    # So never return True for when we have count
+                    return None
             elif not dest_x is None and not dest_y is None and count is None:
                 # Is this the destination?
                 return position.x == dest_x and position.y == dest_y
@@ -724,18 +725,20 @@ class Piece():
                     return False
                 else:
                     # Add each move if it hasn't already been checked
-                    # TODO: Don't add it if it has a higher count than move_count
                     if not count is None and count <= stack_depth:
-                        print(f"The positions after {last_position} will exceed the move count, {count} <= {stack_depth}")
+                        if DEBUG: print(f"The positions after {last_position} will exceed the move count, {count} <= {stack_depth}")
                         continue
                     for dir in next_moves:
                         next_x, next_y = self.direction_position(dir)
                         if DEBUG: print(f"Have I checked {Position(next_x, next_y)}. Is it in:\n{checked_positions}")
                         if not Position(next_x, next_y) in checked_positions:
                             move_stack.append((Position(next_x, next_y), stack_depth + 1))
+        
+        # Return final validation result
         if count is None:
             return False
         else:
+            if DEBUG: print(f"Validation result: is ({dest_x}, {dest_y}) in {count_positions}")
             return Position(dest_x, dest_y) in count_positions
 
     def jump_across_board(self, board):
@@ -757,7 +760,7 @@ class Piece():
                 if piece is None:
                     # If it had no piece before it then it isn't a valid move
                     if previous_piece == None:
-                        print(f"Cannot move in this direction {dir}")
+                        if DEBUG: print(f"Cannot move in this direction {dir}")
                         break
                     else:
                         viable_jump.append(Position(previous_piece.pos_x, previous_piece.pos_y))
@@ -877,7 +880,7 @@ def game_loop(game):
 
 
 def demo_board_0(game):
-    demo = 10
+    demo = 8
     if demo == 1:
         # Simple moving ant
         demo_board = [
@@ -971,7 +974,7 @@ def demo_board_0(game):
             # ['move' , game.players[0], 3 ,  0,  8],
         ]
     elif demo == 9:
-        # Spider move
+        # beetle stack
         demo_board = [
             ['place', game.players[0], 0 ,  0, 10],
             ['place', game.players[1], 1 ,  0, 10],

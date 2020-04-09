@@ -121,6 +121,30 @@ class Game:
         else:
             self.current_player = self.players[0]
 
+        # Check game end
+        # If there are any positions free around the queen bee
+        # than this player has not lost the game
+        game_over_directions = ['1', '2', '3', '4', '5', '6']
+        player_lost = True
+        surrounded_bees = []
+        for player in self.players:
+            for p in player.pieces:
+                if p.type == 'bee':
+                    for dir in game_over_directions:
+                        if not p.surr_pieces[dir]:
+                            player_lost = False
+                            break
+                    if player_lost:
+                        surrounded_bees.append(player)
+                    break
+        if len(surrounded_bees):
+            game.ended = True
+            # Detect a draw
+            if len(surrounded_bees) > 1:
+                print("It was a draw, you both lost. iiidiots")
+            else:
+                print(f"Player {surrounded_bees[0]} lost")
+
     def validate_move_cmd(self, move):
         """
         Valid move commands:
@@ -853,7 +877,7 @@ def game_loop(game):
 
 
 def demo_board_0(game):
-    demo = 7
+    demo = 10
     if demo == 1:
         # Simple moving ant
         demo_board = [
@@ -958,6 +982,24 @@ def demo_board_0(game):
             ['move' , game.players[0], 1 ,  0,  9],
             ['place', game.players[0], 2 ,  0,  8],
             ['place', game.players[1], 1 , -1,  8],
+        ]
+
+    elif demo == 10:
+        # player loses
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 10],
+            ['place', game.players[1], 1 ,  0, 10],
+            ['place', game.players[0], -1,  1, 11],
+            ['place', game.players[0], 0 ,  1,  9],
+            ['place', game.players[0], -1,  2,  8],
+            ['place', game.players[0], -2,  1,  7],
+            ['place', game.players[0], -2,  0,  6],
+            ['place', game.players[0], -1 , 0,  5],
+            # ['move' , game.players[0], 0 ,  0,  9],
+            # ['move' , game.players[1], 1 ,  0,  9],
+            # ['move' , game.players[0], 1 ,  0,  9],
+            # ['place', game.players[0], 2 ,  0,  8],
+            # ['place', game.players[1], 1 , -1,  8],
         ]
     
     for move_type, player, x, y, piece_no in demo_board:

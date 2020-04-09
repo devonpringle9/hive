@@ -1,6 +1,6 @@
 
 DEBUG = 0
-DEMO = 0
+DEMO = 1
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -25,13 +25,14 @@ MOVES:
                 (except 0 pieces) until the next empty position
 * spider - move around the hive three positions
 * beetle - move one space either around the hive or on top of the hive.
-            The piece underneath cannot move. If both players pieces
-            exist in the same position, you cannot place a piece next to
-            it.
+            The piece underneath cannot move. The piece on top will assume
+            the colour of the tile.
 RULES:
 * You can't break the hive. Before you move a piece, if you lift it from
     the board and its splits the hive in two, you cannot move that piece.
 * Must place the queen bee on or before your 4th move.
+* When you place a piece, it cannot be touching the oppositions piece.
+* You cannot move to a position the hexagonal piece can't slide into.
 
 HOW TO PLAY:
 You have two options, 'move' and 'place'
@@ -72,7 +73,9 @@ class Game:
                 y_dest = move_cmd[3]
 
                 # The board will bug if you don't place at 0 0 on the first move
-                if self.current_player.turn_count == 0 and (x_dest or y_dest):
+                if self.current_player.turn_count == 0 and \
+                        (x_dest or y_dest) and \
+                        self.current_player == self.players[0]:
                     print("place at 0 0 for the first move otherwise itll bug a bit :O")
                     continue
                 piece = self.current_player.get_piece_by_available(piece_type)
@@ -202,10 +205,18 @@ class Board:
             print("There are no surrounding pieces")
             return False
         if len(self.board) > 1:
+            print(f"surr pieces {surr_pieces} and placing {piece}")
             for p in surr_pieces:
-                if p.player_id != player.id:
-                    print("You can't place your piece next to the opponents piece")
-                    return False
+                if p.player_id != player.id or p.surr_pieces['top']:
+                    # If the top piece is this players piece, then it can be placed here
+                    # Also, if the top piece isn't this players piece, then it can't be
+                    # played here
+                    top_piece = p
+                    while not top_piece.surr_pieces['top'] is None:
+                        top_piece = top_piece.surr_pieces['top']
+                    if top_piece.player_id != player.id:
+                        print("You can't place your piece next to the opponents piece")
+                        return False
 
         # Update piece, surrounding pieces, and board
         self.board.append([piece, pos_x, pos_y])
@@ -374,10 +385,18 @@ class Board:
                 ['\\', pos_x    , pos_y + 2],
                 [token, pos_x +2 , pos_y + 1],
             ]
+
+            # Print negative positions as blue
             if not x_val is None:
-                border[6][0] = str(x_val)[-1]
+                if x_val < 0:
+                    border[6][0] = '\033[36m' + str(x_val)[-1] + '\033[37m'
+                else:
+                    border[6][0] = str(x_val)[-1]
             if not y_val is None:
-                border[8][0] = str(y_val)[-1]
+                if y_val < 0:
+                    border[8][0] = '\033[36m' + str(y_val)[-1] + '\033[37m'
+                else:
+                    border[8][0] = str(y_val)[-1]
             if under_piece:
                 border[7][0] = under_piece.token
             for char, x, y in border:
@@ -834,7 +853,7 @@ def game_loop(game):
 
 
 def demo_board_0(game):
-    demo = 8
+    demo = 7
     if demo == 1:
         # Simple moving ant
         demo_board = [
@@ -926,6 +945,19 @@ def demo_board_0(game):
             ['place', game.players[0], 0 ,  1,  8],
             ['place', game.players[1], 2 , -1,  2],
             # ['move' , game.players[0], 3 ,  0,  8],
+        ]
+    elif demo == 9:
+        # Spider move
+        demo_board = [
+            ['place', game.players[0], 0 ,  0, 10],
+            ['place', game.players[1], 1 ,  0, 10],
+            ['place', game.players[0], 0 ,  1,  9],
+            ['place', game.players[1], 2 , -1,  9],
+            ['move' , game.players[0], 0 ,  0,  9],
+            ['move' , game.players[1], 1 ,  0,  9],
+            ['move' , game.players[0], 1 ,  0,  9],
+            ['place', game.players[0], 2 ,  0,  8],
+            ['place', game.players[1], 1 , -1,  8],
         ]
     
     for move_type, player, x, y, piece_no in demo_board:

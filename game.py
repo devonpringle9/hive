@@ -1,4 +1,6 @@
 
+import json
+
 DEBUG = 0
 DEMO = 0
 PIECE_NAMES = [
@@ -203,6 +205,17 @@ class Board:
     """
     def __init__(self):
         self.board = [] # [ [piece, pos_x, pos_y], ... ]
+
+    def export_json(self):
+        board_json = {}
+        for inc, piece in enumerate(self.board):
+            board_json[inc] = {'player': piece[0].player_id,
+                                'type': piece[0].type,
+                                'x': piece[1],
+                                'y': piece[2],
+                              }
+
+        print(json.dumps(board_json))
 
     def add_piece(self, piece, pos_x, pos_y, player):
         # Check the piece isn't already on the board
@@ -874,6 +887,7 @@ def game_loop(game):
     debug_count = 7
     while not game.ended and debug_count:
         game.next_turn()
+        game.board.export_json()
         # debug_count -= 1
     
     return 0

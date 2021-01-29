@@ -2,7 +2,6 @@
 import json
 
 DEBUG = 0
-DEMO = 0
 PIECE_NAMES = [
     'ant',
     'spider',
@@ -209,13 +208,17 @@ class Board:
     def export_json(self):
         board_json = {}
         for inc, piece in enumerate(self.board):
-            board_json[inc] = {'player': piece[0].player_id,
-                                'type': piece[0].type,
+            board_json[inc] = { 'piece': piece.export_json(),
                                 'x': piece[1],
                                 'y': piece[2],
                               }
-
         print(json.dumps(board_json))
+
+    def import_json(self, board_json):
+        self.board = []
+        for _, value in board_json.items():
+            self.board.append([Piece.import_json(value['piece'], value['x'], value['y'])])
+
 
     def add_piece(self, piece, pos_x, pos_y, player):
         # Check the piece isn't already on the board
@@ -402,12 +405,10 @@ class Board:
         # Width - 1 + 4 * pieces
         # Height - 1 + 2 * pieces
         def print_around(board, pos_x, pos_y, token, x_val=None, y_val=None, under_piece=None):
-            """
-             01234
-            0 ___
-            1/ P \ 
-            2\___/
-            """
+            #  01234
+            # 0 ___
+            # 1/ P \ 
+            # 2\___/
             border = [
                 ['/' , pos_x    , pos_y + 1],
                 ['_' , pos_x + 1, pos_y    ],
@@ -482,6 +483,52 @@ class Piece():
         self.pos_x = None
         self.pos_y = None
         self.assign_board_token()
+
+    def export_json(self, return_json=False):
+        piece_json = {
+            'player_id': self.player_id,
+            'id': self.id,
+            'name': self.name,
+            'type': self.type,
+            'in_play': self.in_play,
+            'surr_pieces': {
+                '1': self.surr_pieces['1'].id,
+                '2': self.surr_pieces['2'].id,
+                '3': self.surr_pieces['3'].id,
+                '4': self.surr_pieces['4'].id,
+                '5': self.surr_pieces['5'].id,
+                '6': self.surr_pieces['6'].id,
+                'top': self.surr_pieces['top'].id,
+                'bottom': self.surr_pieces['bottom'].id,
+            },
+            'pos_x': self.pos_x,
+            'pos_y': self.pos_y,
+            'token': self.token,
+        }
+        print(json.dumps(piece_json))
+        if return_json:
+            return piece_json
+        return json.dumps(piece_json)
+
+    def import_json(self, piece_json):
+        self.player_id = piece_json['player_id']
+        self.id = piece_json['id']
+        self.name = piece_json['name']
+        self.type = piece_json['type']
+        self.in_play = piece_json['in_play']
+        self.surr_pieces = {
+            '1': self.surr_pieces['1'].id,
+            '2': self.surr_pieces['2'].id,
+            '3': self.surr_pieces['3'].id,
+            '4': self.surr_pieces['4'].id,
+            '5': self.surr_pieces['5'].id,
+            '6': self.surr_pieces['6'].id,
+            'top': self.surr_pieces['top'].id,
+            'bottom': self.surr_pieces['bottom'].id,
+        }
+        self.pos_x = piece_json['pos_x']
+        self.pos_y = piece_json['pos_y']
+        self.token = piece_json['token']
 
     def __str__(self):
         return f"{self.name}:{self.type}"
@@ -893,146 +940,7 @@ def game_loop(game):
     return 0
 
 
-def demo_board_0(game):
-    demo = 8
-    if demo == 1:
-        # Simple moving ant
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  2,  1],
-            ['move' , game.players[0], 0 , -2,  1],
-        ]
-    elif demo == 2:
-        # Ant can't move out of gap
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  2,  1],
-            ['place', game.players[0], 1 ,  3,  2],
-            ['place', game.players[0], 0 ,  3,  3],
-            ['place', game.players[0], 0 ,  2,  4],
-            ['place', game.players[0],-1 ,  3,  5],
-            ['move' , game.players[0], 0 , -2,  4],
-        ]
-    elif demo == 3:
-        # Ant can move across gap
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  2,  1],
-            ['place', game.players[0], 1 ,  3,  2],
-            ['place', game.players[0], 0 ,  3,  3],
-            ['place', game.players[0], 0 ,  4,  4],
-            ['place', game.players[0],-1 ,  3,  5],
-            ['move' , game.players[0], 0 , -2,  4],
-        ]
-    elif demo == 4:
-        # Spider move
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  2,  1],
-            ['place', game.players[0], 1 ,  3,  2],
-            ['place', game.players[0], 0 ,  3,  3],
-            ['place', game.players[0], 0 ,  4,  8],
-            ['place', game.players[0],-1 ,  3,  5],
-            ['move' , game.players[0], 0 , -2,  8],
-        ]
-    elif demo == 5:
-        # Grasshopper move 3 times consecutively
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  1,  8],
-            ['place', game.players[0], 2 ,  0,  9],
-            ['move' , game.players[0], 0 , -2,  0],
-            ['move' , game.players[0], 0 ,  1,  0],
-            ['move' , game.players[0], 3 ,  0,  0],
-        ]
-    elif demo == 6:
-        # Queen bee move
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  1,  8],
-            ['place', game.players[0], 2 ,  0,  9],
-            ['move' , game.players[1], 1 ,  0, 11],
-        ]
-    elif demo == 7:
-        # Beetle move
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 0 , -1, 11],
-            ['place', game.players[0], 0 ,  1,  0],
-            ['place', game.players[0], 1 ,  1,  8],
-            ['place', game.players[0], 2 ,  0, 10],
-            ['move' , game.players[0], 1 ,  0, 10],
-            ['move' , game.players[0], 1 ,  1, 10],
-            ['move' , game.players[0], 0 ,  1, 10],
-            ['move' , game.players[0], -1,  2, 10],
-        ]
-    elif demo == 8:
-        # Spider move
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 11],
-            ['place', game.players[1], 1 ,  0, 11],
-            ['place', game.players[0], 0 ,  1,  8],
-            ['place', game.players[1], 2 , -1,  2],
-            # ['move' , game.players[0], 3 ,  0,  8],
-        ]
-    elif demo == 9:
-        # beetle stack
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 10],
-            ['place', game.players[1], 1 ,  0, 10],
-            ['place', game.players[0], 0 ,  1,  9],
-            ['place', game.players[1], 2 , -1,  9],
-            ['move' , game.players[0], 0 ,  0,  9],
-            ['move' , game.players[1], 1 ,  0,  9],
-            ['move' , game.players[0], 1 ,  0,  9],
-            ['place', game.players[0], 2 ,  0,  8],
-            ['place', game.players[1], 1 , -1,  8],
-        ]
-
-    elif demo == 10:
-        # player loses
-        demo_board = [
-            ['place', game.players[0], 0 ,  0, 10],
-            ['place', game.players[1], 1 ,  0, 10],
-            ['place', game.players[0], -1,  1, 11],
-            ['place', game.players[0], 0 ,  1,  9],
-            ['place', game.players[0], -1,  2,  8],
-            ['place', game.players[0], -2,  1,  7],
-            ['place', game.players[0], -2,  0,  6],
-            ['place', game.players[0], -1 , 0,  5],
-            # ['move' , game.players[0], 0 ,  0,  9],
-            # ['move' , game.players[1], 1 ,  0,  9],
-            # ['move' , game.players[0], 1 ,  0,  9],
-            # ['place', game.players[0], 2 ,  0,  8],
-            # ['place', game.players[1], 1 , -1,  8],
-        ]
-    
-    for move_type, player, x, y, piece_no in demo_board:
-        if move_type == 'place':
-            game.board.add_piece(player.pieces[piece_no], x, y, player)
-        else:
-            print(game.board)
-            game.board.move_piece(player.pieces[piece_no], x, y)
-    return game
-
-
 if __name__ == "__main__":
     game = Game()
-    if DEMO:
-        game = demo_board_0(game)
-        print(game.board)
-        ret_code = 0
     ret_code = game_loop(game)
     exit(ret_code)

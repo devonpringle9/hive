@@ -53,7 +53,7 @@ class Game:
         if (DEBUG): print(f"Created players: {self.players}")
         self.current_player = self.players[0]
 
-        if not DEBUG: print(RULES)
+        # if not DEBUG: print(RULES)
     
     def next_turn(self):
         valid_move = False
@@ -205,14 +205,16 @@ class Board:
     def __init__(self):
         self.board = [] # [ [piece, pos_x, pos_y], ... ]
 
-    def export_json(self):
+    def export_json(self, return_json=False):
         board_json = {}
         for inc, piece in enumerate(self.board):
-            board_json[inc] = { 'piece': piece.export_json(),
+            board_json[inc] = { 'piece': piece[0].export_json(),
                                 'x': piece[1],
                                 'y': piece[2],
                               }
-        print(json.dumps(board_json))
+        if return_json:
+            return board_json
+        return json.dumps(board_json)
 
     def import_json(self, board_json):
         self.board = []
@@ -491,21 +493,13 @@ class Piece():
             'name': self.name,
             'type': self.type,
             'in_play': self.in_play,
-            'surr_pieces': {
-                '1': self.surr_pieces['1'].id,
-                '2': self.surr_pieces['2'].id,
-                '3': self.surr_pieces['3'].id,
-                '4': self.surr_pieces['4'].id,
-                '5': self.surr_pieces['5'].id,
-                '6': self.surr_pieces['6'].id,
-                'top': self.surr_pieces['top'].id,
-                'bottom': self.surr_pieces['bottom'].id,
-            },
+            'surr_pieces': {},
             'pos_x': self.pos_x,
             'pos_y': self.pos_y,
             'token': self.token,
         }
-        print(json.dumps(piece_json))
+        for surr_position, piece in self.surr_pieces.items():
+            piece_json['surr_pieces'][surr_position] = None if piece == None else piece.id
         if return_json:
             return piece_json
         return json.dumps(piece_json)

@@ -1,5 +1,6 @@
 import pytest
 import game
+import json
 
 TEST_FILE = 'test_files/'
 
@@ -183,8 +184,16 @@ def test_moves(new_game, moves_test_data):
     compare_files(TEST_FILE + expected_file + '.board', TEST_FILE + expected_file + '.board.actual')
 
 
-def test_export_jsons(new_game, moves_test_data):
+def test_export_game_json(new_game, moves_test_data):
     expected_file, moves_list, export_json = moves_test_data
     new_game = play_moves(new_game, moves_list)
-    save_text_into_file(TEST_FILE + expected_file + '.json.actual', new_game.board.export_json())
+    save_text_into_file(TEST_FILE + expected_file + '.json.actual', new_game.export_json())
     compare_files(TEST_FILE + expected_file + '.json', TEST_FILE + expected_file + '.json.actual')
+
+def test_import_jsons(new_game, moves_test_data):
+    expected_file, _, export_json = moves_test_data
+    with open(TEST_FILE + expected_file + '.json', 'r') as f:
+        import_json_text = f.read()
+    new_game.import_json(json.loads(import_json_text))
+    save_text_into_file(TEST_FILE + expected_file + '.import.board.actual', str(new_game.board))
+    compare_files(TEST_FILE + expected_file + '.import.board', TEST_FILE + expected_file + '.import.board.actual')

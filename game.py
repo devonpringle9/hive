@@ -54,6 +54,27 @@ class Game:
         self.current_player = self.players[0]
 
         # if not DEBUG: print(RULES)
+
+    def export_json(self, return_json=False):
+        game_json = {'players': []}
+        for player in self.players:
+            game_json['players'].append(player.export_json(return_json=True))
+        game_json['ended'] = self.ended
+        game_json['board'] = self.board.export_json(return_json=True)
+        game_json['current_player_id'] = self.current_player.id
+        if return_json:
+            return game_json
+        return json.dumps(game_json)
+
+    def import_json(self, import_json):
+        self.players = [Player(0).import_json(player, self) for player in import_json['players']]
+        self.board = Board().import_json(import_json['board'], self)
+        self.ended = import_json['ended']
+        self.board = import_json['board']
+        for player in self.players:
+            if player.id == import_json['current_player_id']:
+                self.current_player = player
+                break
     
     def next_turn(self):
         valid_move = False
@@ -206,21 +227,26 @@ class Board:
         self.board = [] # [ [piece, pos_x, pos_y], ... ]
 
     def export_json(self, return_json=False):
-        board_json = {}
-        for inc, piece in enumerate(self.board):
-            board_json[inc] = { 'piece': piece[0].export_json(),
-                                'x': piece[1],
-                                'y': piece[2],
-                              }
+        board_json = []
+        for piece_status in self.board:
+            board_json.append({
+                                'piece_id': piece_status[0].id,
+                                'x': piece_status[1],
+                                'y': piece_status[2],
+                            })
         if return_json:
             return board_json
         return json.dumps(board_json)
 
-    def import_json(self, board_json):
+    def import_json(self, board_json, game):
         self.board = []
-        for _, value in board_json.items():
-            self.board.append([Piece.import_json(value['piece'], value['x'], value['y'])])
-
+        for piece_status in board_json:
+            self.board.append([None, piece_status['x'], piece_status['y']])
+            for player in game.players:
+                for piece in player.pieces:
+                    if piece.id == piece_status['piece_id']:
+                        self.board[-1][0] = piece
+                        break
 
     def add_piece(self, piece, pos_x, pos_y, player):
         # Check the piece isn't already on the board
@@ -493,36 +519,36 @@ class Piece():
             'name': self.name,
             'type': self.type,
             'in_play': self.in_play,
-            'surr_pieces': {},
+            'surr_pieces_ids': {},
             'pos_x': self.pos_x,
             'pos_y': self.pos_y,
             'token': self.token,
         }
         for surr_position, piece in self.surr_pieces.items():
-            piece_json['surr_pieces'][surr_position] = None if piece == None else piece.id
+            piece_json['surr_pieces_ids'][surr_position] = None if piece == None else piece.id
         if return_json:
             return piece_json
         return json.dumps(piece_json)
 
-    def import_json(self, piece_json):
+    def import_json(self, piece_json, game, link_piece_objects=False):
         self.player_id = piece_json['player_id']
         self.id = piece_json['id']
         self.name = piece_json['name']
         self.type = piece_json['type']
         self.in_play = piece_json['in_play']
-        self.surr_pieces = {
-            '1': self.surr_pieces['1'].id,
-            '2': self.surr_pieces['2'].id,
-            '3': self.surr_pieces['3'].id,
-            '4': self.surr_pieces['4'].id,
-            '5': self.surr_pieces['5'].id,
-            '6': self.surr_pieces['6'].id,
-            'top': self.surr_pieces['top'].id,
-            'bottom': self.surr_pieces['bottom'].id,
-        }
+        for surr_position, piece_id in piece_json['surr_pieces_ids'].items():
+            self.surr_pieces[surr_position] = None if piece_id == None else piece_id
+        if link_piece_objects:
+            for key, piece_id in self.surr_pieces.items():
+                for player in game.players:
+                        for piece in player.pieces:
+                            if piece.id == piece_id:
+                                self.surr_pieces[key] = piece
+                                break
         self.pos_x = piece_json['pos_x']
         self.pos_y = piece_json['pos_y']
         self.token = piece_json['token']
+        return self
 
     def __str__(self):
         return f"{self.name}:{self.type}"
@@ -890,6 +916,29 @@ class Player:
         if (DEBUG): print(f"Created pieces for {self.name}: {self.pieces}")
         self.turn_count = 0
         self.played_queen = False
+
+    def export_json(self, return_json=False):
+        player_json = {}
+        player_json['name'] = self.name
+        player_json['id'] = self.id
+        player_json['turn_count'] = self.turn_count
+        player_json['played_queen'] = self.played_queen
+        player_json['pieces'] = [p.export_json(return_json=True) for p in self.pieces]
+        if return_json:
+            return player_json
+        return json.dumps(player_json)
+
+    def import_json(self, import_json, game):
+        self.name = import_json['name']
+        self.id = import_json['id']
+        self.turn_count = import_json['turn_count']
+        self.played_queen = import_json['played_queen']
+        self.pieces = []
+        for piece_json in import_json['pieces']:
+            self.pieces.append(Piece(0, 'bee', 0).import_json(piece_json, None, link_piece_objects=False))
+        for piece_json in import_json['pieces']:
+            self.pieces.append(Piece(0, 'bee', 0).import_json(piece_json, game, link_piece_objects=True))
+        return self
 
     def __str__(self):
         return self.name
